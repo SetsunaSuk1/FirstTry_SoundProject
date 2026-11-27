@@ -25,4 +25,4 @@
 - 使用 Streamlit 开发了 `Web_App.py` 前端界面，直接调用底层模块。
 - 实现了滤波参数的实时调整与可视化对比。并且加入了异常保护机制（防止参数超出奈奎斯特频率导致崩溃）。
 - 解决 Streamlit 状态刷新导致图表重复渲染的 Bug（使用 `st.empty()` 和 `plt.close()`）。
-![网页界面](Streamlit_UI.png)
+![网页界面](Streamlit_UI_1.png)
