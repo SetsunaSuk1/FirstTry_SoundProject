@@ -1,56 +1,69 @@
-
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.io import wavfile
 import os
 
+# 设置中文字体
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
-#读取文件
-file_path = os.path.join('data/sample_AtlanticSpottedDolphin_1961_6102500A.wav')
 
-#读取音频
-try:
+def load_audio(file_path):
+    """读取音频并统一转换为浮点数格式"""
     fs, data = wavfile.read(file_path)
-    print(f"✅ 读取成功！采样率: {fs} Hz, 时长: {len(data)/fs:.2f} 秒")
-except Exception as e:
-    print("读取失败，请检查文件路径是否正确：", e)
-    exit()
+    if len(data.shape) > 1:
+        data = data[:, 0]
+    if data.dtype != 'float32':
+        data = data.astype('float32') / 32768.0
+    return fs, data
 
-# 如果音频是双声道（立体声），取左声道
-if len(data.shape) > 1:
-    data = data[:, 0]
 
-# 4. 画图：上面画波形，下面画声谱图
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+def apply_bandpass_filter(data, fs, lowcut, highcut, order=4):
+    """应用巴特沃斯带通滤波器"""
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = signal.butter(order, [low, high], btype='band')
+    filtered_data = signal.filtfilt(b, a, data)
+    return filtered_data
 
-# --- 上半部分：波形图 ---
-time = np.arange(len(data)) / fs
-ax1.plot(time, data, color='blue', linewidth=0.5)
-ax1.set_title('Waveform (波形图)')
-ax1.set_xlabel('Time (s)')
-ax1.set_ylabel('Amplitude')
 
-# --- 下半部分：声谱图 ---
-# 这里使用 scipy 的 spectrogram 函数
-# nperseg 越大，频率分辨率越高，时间分辨率越低。
-f, t, Sxx = signal.spectrogram(data, fs, nperseg=1024, noverlap=512)
+def plot_comparison(data, filtered_data, fs, lowcut, highcut):
+    """画四宫格对比图，返回 matplotlib 的 figure 对象"""
+    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
+    time = np.arange(len(data)) / fs
 
-# 官方图的范围是 0-21kHz
-# Sxx 是能量谱，用 10*log10(Sxx) 转成 dB
-ax2.pcolormesh(t, f, 10 * np.log10(Sxx + 1e-10), shading='gouraud', cmap='inferno')
-ax2.set_title('Spectrogram (声谱图)')
-ax2.set_xlabel('Time (s)')
-ax2.set_ylabel('Frequency (kHz)')
+    # 原始数据
+    axes[0, 0].plot(time, data, color='blue', linewidth=0.5)
+    axes[0, 0].set_title('原始波形')
+    axes[0, 0].set_ylabel('Amplitude')
 
-# 限制 Y 轴在 0-21kHz 之间（大约 21000 Hz）
-ax2.set_ylim(0, 21000)
+    f, t, Sxx = signal.spectrogram(data, fs, nperseg=1024, noverlap=512)
+    axes[1, 0].pcolormesh(t, f, 10 * np.log10(Sxx + 1e-10), shading='gouraud', cmap='inferno')
+    axes[1, 0].set_title('原始声谱图')
+    axes[1, 0].set_ylabel('Frequency (Hz)')
+    axes[1, 0].set_xlabel('Time (s)')
+    axes[1, 0].set_ylim(0, min(21000, fs / 2))
 
-# 显示颜色条
-cbar = plt.colorbar(ax2.collections[0], ax=ax2)
-cbar.set_label('Intensity (dB)')
+    # 滤波后数据
+    axes[0, 1].plot(time, filtered_data, color='green', linewidth=0.5)
+    axes[0, 1].set_title(f'滤波后波形 ({lowcut} - {highcut} Hz)')
 
-plt.tight_layout()
-plt.show()
+    f_f, t_f, Sxx_f = signal.spectrogram(filtered_data, fs, nperseg=1024, noverlap=512)
+    axes[1, 1].pcolormesh(t_f, f_f, 10 * np.log10(Sxx_f + 1e-10), shading='gouraud', cmap='inferno')
+    axes[1, 1].set_title('滤波后声谱图')
+    axes[1, 1].set_xlabel('Time (s)')
+    axes[1, 1].set_ylim(0, min(21000, fs / 2))
+
+    plt.tight_layout()
+    return fig
+
+
+# 保留一个入口，如果你直接在 PyCharm 运行 test.py，依然能出图
+if __name__ == "__main__":
+    file_path = os.path.join('data', 'sample_AtlanticSpottedDolphin_1961_6102500A.wav')
+    fs, data = load_audio(file_path)
+    filtered_data = apply_bandpass_filter(data, fs, 4000, 15000)
+    fig = plot_comparison(data, filtered_data, fs, 4000, 15000)
+    plt.show()
